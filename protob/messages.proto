@@ -93,6 +93,15 @@ enum MessageType {
 	MessageType_DebugLinkMemory = 111 [(wire_debug_out) = true];
 	MessageType_DebugLinkMemoryWrite = 112 [(wire_debug_in) = true];
 	MessageType_DebugLinkFlashErase = 113 [(wire_debug_in) = true];
+
+	// Stellar - incoming
+	MessageType_StellarGetPublicKey = 200 [(wire_in) = true];
+	MessageType_StellarPublicKey = 201 [(wire_out) = true];
+
+	MessageType_StellarSignTx = 202 [(wire_in) = true];
+	MessageType_StellarTxOpRequest = 203 [(wire_out) = true];
+	MessageType_StellarTxOpAck = 204 [(wire_in) = true];
+	MessageType_StellarSignedTx = 205 [(wire_out) = true];
 }
 
 ////////////////////
@@ -912,6 +921,57 @@ message CosiSign {
 message CosiSignature {
 	optional bytes signature = 1;		// Signature
 }
+
+//////////////////////
+// Stellar messages //
+//////////////////////
+
+/**
+ * In: request for the public key at the specified index
+ */
+message StellarGetPublicKey {
+	required uint32 index = 1;			// Account index (derived as m/44'/148'/index')
+}
+
+/**
+ * Out: public key for the given index
+ */
+message StellarPublicKey {
+	required uint32 index = 1;			// Account index
+	required bytes public_key = 2;		// Raw bytes of the public key (no version or checksum)
+}
+
+/**
+ * In: request to sign the given transaction
+ */
+message StellarSignTx {
+	required uint32 index = 1;					// Account index (derived as m/44'/148'/index')
+	required string network_passphrase = 2;     // Used to distinguish transactions on the testnet vs. public net
+	required bytes header_xdr = 3;				// XDR-encoded transaction envelope header
+}
+
+/**
+ * Out: request for next operation in the transaction
+ */
+message StellarTxOpRequest {
+	required uint32 offset = 1;	// The offset (in bytes) for where to start sending the next part of the tx
+}
+
+/**
+ * In: next operation to sign
+ */
+message StellarTxOpAck {
+  required bytes xdr = 1;           // XDR-encoded bytes starting at the offset requested in StellarTxOpRequest
+}
+
+/**
+ * Out: signature of transaction
+ */
+message StellarSignedTx {
+  required bytes public_key = 1;  // public key for the private key used to sign data
+  required bytes signature = 2;   // signature suitable for sending to the Stellar network
+}
+
 
 /////////////////////////////////////////////////////////////
 // Debug messages (only available if DebugLink is enabled) //
