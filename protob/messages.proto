@@ -927,14 +927,16 @@ message CosiSignature {
 //////////////////////
 
 /**
- * In: request for the public key at the specified index
+ * Request: Public key at the specified index
+ * @next StellarPublicKey
  */
 message StellarGetPublicKey {
 	required uint32 index = 1;			// Account index (derived as m/44'/148'/index')
 }
 
 /**
- * Out: public key for the given index
+ * Response: Public key for the given index
+ * @prev StellarGetPublicKey
  */
 message StellarPublicKey {
 	required uint32 index = 1;			// Account index
@@ -942,7 +944,8 @@ message StellarPublicKey {
 }
 
 /**
- * In: request to sign the given transaction
+ * Request: Sign the given transaction
+ * @next StellarTxOpRequest
  */
 message StellarSignTx {
 	required uint32 index = 1;					// Account index (derived as m/44'/148'/index')
@@ -951,21 +954,28 @@ message StellarSignTx {
 }
 
 /**
- * Out: request for next operation in the transaction
+ * Request: Next operation in the transaction
+ * @prev StellarSignTx
+ * @next StellarTxOpAck
+ * @next StellarSignedTx
  */
 message StellarTxOpRequest {
 	required uint32 offset = 1;	// The offset (in bytes) for where to start sending the next part of the tx
 }
 
 /**
- * In: next operation to sign
+ * Response: next operation to sign
+ * @prev StellarTxOpRequest
+ * @next StellarTxOpAck
+ * @next StellarSignedTx
  */
 message StellarTxOpAck {
   required bytes xdr = 1;           // XDR-encoded bytes starting at the offset requested in StellarTxOpRequest
 }
 
 /**
- * Out: signature of transaction
+ * Response: signature for transaction
+ * @prev StellarTxOpAck
  */
 message StellarSignedTx {
   required bytes public_key = 1;  // public key for the private key used to sign data
