@@ -944,33 +944,47 @@ message StellarPublicKey {
 }
 
 /**
- * Request: Sign the given transaction
- * @next StellarTxOpRequest
+ * Request: ask device to sign Stellar transaction
+ * @next StellarTxOpAck
  */
 message StellarSignTx {
-	required uint32 index = 1;					// Account index (derived as m/44'/148'/index')
-	required string network_passphrase = 2;     // Used to distinguish transactions on the testnet vs. public net
-	required bytes header_xdr = 3;				// XDR-encoded transaction envelope header
+	optional uint32 protocol_version = 1;	// version of the protofbuf messaging protocol the client is using
+	optional uint32 index = 2;				// account index to use when signing
+	optional string network_passphrase = 3; // passphrase for signing messages on the destination network
+	optional bytes source_account = 4;		// 32-byte source
+	optional uint32 fee = 5;				// Fee (in stroops) for the transaction
+	optional uint64 sequence_number = 6;	// transaction sequence number
+	optional uint32 timebounds_start = 8;	// unix timestamp (client must truncate this to 32 bytes)
+	optional uint32 timebounds_end = 9;	    // unix timestamp (client must truncate this to 32 bytes)
+	optional uint32 memo_type = 10;			// 0 = none, 1 = text, 2 = id, 3 = hash, 4 = return
+	optional string memo_text = 11;			// up to 28 characters (4 bytes are for length)
+	optional uint64 memo_id = 12;			// 8-byte uint64
+	optional bytes memo_hash = 13;			// 32 bytes representing a hash
+	optional uint32 num_operations = 14;	// number of operations in this transaction
 }
 
 /**
- * Request: Next operation in the transaction
+ * Response: device is ready for client to send the next operation
  * @prev StellarSignTx
  * @next StellarTxOpAck
  * @next StellarSignedTx
  */
 message StellarTxOpRequest {
-	required uint32 offset = 1;	// The offset (in bytes) for where to start sending the next part of the tx
 }
 
 /**
- * Response: next operation to sign
+ * Request: ask device to confirm this operation
  * @prev StellarTxOpRequest
  * @next StellarTxOpAck
  * @next StellarSignedTx
  */
 message StellarTxOpAck {
-  required bytes xdr = 1;           // XDR-encoded bytes starting at the offset requested in StellarTxOpRequest
+	optional uint32 type = 1;				// Operation type (see: https://github.com/stellar/stellar-core/blob/master/src/xdr/Stellar-transaction.x#L16 )
+
+	optional bytes source_account = 2;		// (optional) 32-byte source account
+	optional bytes destination_account = 3;	// 32-byte destination account
+	optional uint64 amount = 4;				// amount to use for create account, payment, etc.
+	optional StellarAssetType asset = 5;	// asset involved in the operation
 }
 
 /**
@@ -978,8 +992,8 @@ message StellarTxOpAck {
  * @prev StellarTxOpAck
  */
 message StellarSignedTx {
-  required bytes public_key = 1;  // public key for the private key used to sign data
-  required bytes signature = 2;   // signature suitable for sending to the Stellar network
+	optional bytes public_key = 1;  // public key for the private key used to sign data
+	optional bytes signature = 2;   // signature suitable for sending to the Stellar network
 }
 
 
