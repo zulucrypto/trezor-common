@@ -94,14 +94,30 @@ enum MessageType {
 	MessageType_DebugLinkMemoryWrite = 112 [(wire_debug_in) = true];
 	MessageType_DebugLinkFlashErase = 113 [(wire_debug_in) = true];
 
-	// Stellar - incoming
+	// Stellar
 	MessageType_StellarGetPublicKey = 200 [(wire_in) = true];
 	MessageType_StellarPublicKey = 201 [(wire_out) = true];
 
 	MessageType_StellarSignTx = 202 [(wire_in) = true];
 	MessageType_StellarTxOpRequest = 203 [(wire_out) = true];
-	MessageType_StellarTxOpAck = 204 [(wire_in) = true];
-	MessageType_StellarSignedTx = 205 [(wire_out) = true];
+	MessageType_StellarSignString = 204 [(wire_in) = true];
+	MessageType_StellarSignedData = 205 [(wire_out) = true];
+	MessageType_StellarVerifyMessage = 206 [(wire_in) = true];
+	MessageType_StellarMessageVerification = 207 [(wire_out) = true];
+
+	MessageType_StellarCreateAccountOp = 210 [(wire_in) = true];
+	MessageType_StellarPaymentOp = 211 [(wire_in) = true];
+	MessageType_StellarPathPaymentOp = 212 [(wire_in) = true];
+	MessageType_StellarManageOfferOp = 213 [(wire_in) = true];
+	MessageType_StellarCreatePassiveOfferOp = 214 [(wire_in) = true];
+	MessageType_StellarSetOptionsOp = 215 [(wire_in) = true];
+	MessageType_StellarChangeTrustOp = 216 [(wire_in) = true];
+	MessageType_StellarAllowTrustOp = 217 [(wire_in) = true];
+	MessageType_StellarAccountMergeOp = 218 [(wire_in) = true];
+	// Omitted: inflation is not a supported operation, would be 219
+	MessageType_StellarManageDataOp = 220 [(wire_in) = true];
+
+	MessageType_StellarSignedTx = 230 [(wire_out) = true];
 }
 
 ////////////////////
@@ -931,7 +947,7 @@ message CosiSignature {
  * @next StellarPublicKey
  */
 message StellarGetPublicKey {
-	required uint32 index = 1;			// Account index (derived as m/44'/148'/index')
+	optional uint32 index = 1;		// Account index (derived as m/44'/148'/index')
 }
 
 /**
@@ -939,13 +955,52 @@ message StellarGetPublicKey {
  * @prev StellarGetPublicKey
  */
 message StellarPublicKey {
-	required uint32 index = 1;			// Account index
-	required bytes public_key = 2;		// Raw bytes of the public key (no version or checksum)
+	optional uint32 index = 1;		// Account index (0-based) used to derive the public key
+	optional bytes public_key = 2;	// Raw bytes of the public key (no version or checksum)
+}
+
+/**
+ * Request: ask device to sign the given string
+ * @next StellarSignedData
+ */
+message StellarSignString {
+	optional uint32 index = 1;		// Account index (0-based)
+
+	optional string message = 2;	// Message to sign
+}
+
+/**
+ * Response: device has signed data
+ * @prev StellarSignString
+ */
+message StellarSignedData {
+	optional uint32 index = 1;		// Account index (0-based) used to derive the signing key
+	optional bytes public_key = 2;	// Raw bytes of the public key (no version or checksum)
+	optional bytes signature = 3;   // ed25519 signature bytes
+}
+
+/**
+ * Request: ask device to verify that signature is valid (public_key has signed message)
+ * @next StellarMessageVerification
+ */
+message StellarVerifyMessage {
+	optional bytes public_key = 1;	// Public key corresponding to the private key that signed the message
+	optional bytes message = 2;		// Binary data that was signed
+	optional bytes signature = 3;	// Signature to verify
+}
+
+/**
+ * Response: device has checked signature and either verified or denied it
+ * @prev StellarVerifyMessage
+ */
+message StellarMessageVerification {
+	optional bytes public_key = 1;  // public key used to verify the message
+	optional bool is_verified = 2;	// 1 if the message was verified, 0 otherwise
 }
 
 /**
  * Request: ask device to sign Stellar transaction
- * @next StellarTxOpAck
+ * @next StellarTxOpRequest
  */
 message StellarSignTx {
 	optional uint32 protocol_version = 1;	// version of the protofbuf messaging protocol the client is using
@@ -966,30 +1021,184 @@ message StellarSignTx {
 /**
  * Response: device is ready for client to send the next operation
  * @prev StellarSignTx
- * @next StellarTxOpAck
- * @next StellarSignedTx
+ * @next StellarPaymentOp
+ * @next StellarCreateAccountOp
+ * @next StellarPathPaymentOp
+ * @next StellarManageOfferOp
+ * @next StellarCreatePassiveOfferOp
+ * @next StellarSetOptionsOp
+ * @next StellarChangeTrustOp
+ * @next StellarAllowTrustOp
+ * @next StellarAccountMergeOp
+ * @next StellarManageDataOp
  */
 message StellarTxOpRequest {
 }
 
 /**
- * Request: ask device to confirm this operation
+ * Request: ask device to confirm this operation type
  * @prev StellarTxOpRequest
- * @next StellarTxOpAck
+ * @next StellarTxOpRequest
  * @next StellarSignedTx
  */
-message StellarTxOpAck {
-	optional uint32 type = 1;				// Operation type (see: https://github.com/stellar/stellar-core/blob/master/src/xdr/Stellar-transaction.x#L16 )
+message StellarPaymentOp {
+	optional bytes source_account = 1;		// (optional) 32-byte source account
 
-	optional bytes source_account = 2;		// (optional) 32-byte source account
-	optional bytes destination_account = 3;	// 32-byte destination account
-	optional uint64 amount = 4;				// amount to use for create account, payment, etc.
-	optional StellarAssetType asset = 5;	// asset involved in the operation
+	optional bytes destination_account = 2;	// 32-byte destination account
+	optional StellarAssetType asset = 3;	// asset involved in the operation
+	optional int64 amount = 4;				// amount of the given asset to pay
+}
+
+/**
+ * Request: ask device to confirm this operation type
+ * @prev StellarTxOpRequest
+ * @next StellarTxOpRequest
+ * @next StellarSignedTx
+ */
+message StellarCreateAccountOp {
+	optional bytes source_account = 1;		// (optional) 32-byte source account
+
+	optional bytes new_account = 2;			// 32-byte account ID to create
+	optional int64 starting_balance = 3;	// initial starting balance for the new account
+}
+
+/**
+ * Request: ask device to confirm this operation type
+ * @prev StellarTxOpRequest
+ * @next StellarTxOpRequest
+ * @next StellarSignedTx
+ */
+message StellarPathPaymentOp {
+	optional bytes source_account = 1;		// (optional) 32-byte source account
+
+	optional StellarAssetType send_asset = 2;
+	optional int64 send_max = 3;
+	optional bytes destination_account = 4;
+	optional StellarAssetType destination_asset = 5;
+	optional int64 destination_amount = 6;
+	repeated StellarAssetType paths = 7;
+}
+
+/**
+ * Request: ask device to confirm this operation type
+ * @prev StellarTxOpRequest
+ * @next StellarTxOpRequest
+ * @next StellarSignedTx
+ */
+message StellarManageOfferOp {
+	optional bytes source_account = 1;		// (optional) 32-byte source account
+
+	optional StellarAssetType selling_asset = 2;
+	optional StellarAssetType buying_asset = 3;
+	optional int64 amount = 4;
+	optional uint32 price_n = 5;			// Price numerator
+	optional uint32 price_d = 6;			// Price denominator
+	optional uint64 offer_id = 7;			// Offer ID for updating an existing offer
+}
+
+/**
+ * Request: ask device to confirm this operation type
+ * @prev StellarTxOpRequest
+ * @next StellarTxOpRequest
+ * @next StellarSignedTx
+ */
+message StellarCreatePassiveOfferOp {
+	optional bytes source_account = 1;		// (optional) 32-byte source account
+
+	optional StellarAssetType selling_asset = 2;
+	optional StellarAssetType buying_asset = 3;
+	optional int64 amount = 4;
+	optional uint32 price_n = 5;			// Price numerator
+	optional uint32 price_d = 6;			// Price denominator
+}
+
+/**
+ * Request: ask device to confirm this operation type
+ * @prev StellarTxOpRequest
+ * @next StellarTxOpRequest
+ * @next StellarSignedTx
+ */
+message StellarSetOptionsOp {
+	optional bytes source_account = 1;		// (optional) 32-byte source account
+
+	optional bytes inflation_destination_account = 2; // (optional) 32-byte inflation destination
+	optional uint32 clear_flags = 3;
+	optional uint32 set_flags = 4;
+	optional uint32 master_weight = 5;
+	optional uint32 low_threshold = 6;
+	optional uint32 medium_threshold = 7;
+	optional uint32 high_threshold = 8;
+	optional string home_domain = 9;
+	optional uint32 signer_type = 10;
+	optional bytes signer_key = 11;
+	optional uint32 signer_weight = 12;
+}
+
+/**
+ * Request: ask device to confirm this operation type
+ * @prev StellarTxOpRequest
+ * @next StellarTxOpRequest
+ * @next StellarSignedTx
+ */
+message StellarChangeTrustOp {
+	optional bytes source_account = 1;		// (optional) 32-byte source account
+
+	optional StellarAssetType asset = 2;
+	optional uint64 limit = 3;
+}
+
+/**
+ * Request: ask device to confirm this operation type
+ * @prev StellarTxOpRequest
+ * @next StellarTxOpRequest
+ * @next StellarSignedTx
+ */
+message StellarAllowTrustOp {
+	optional bytes source_account = 1;		// (optional) 32-byte source account
+
+	optional bytes trusted_account = 2;		// The account being allowed to hold the asset
+	optional uint32 asset_type = 3;			// 1 = 4-character, 2 = 12-character
+	optional string asset_code = 4;			// human-readable asset code
+	optional uint32 is_authorized = 5;
+}
+
+/**
+ * Request: ask device to confirm this operation type
+ * @prev StellarTxOpRequest
+ * @next StellarTxOpRequest
+ * @next StellarSignedTx
+ */
+message StellarAccountMergeOp {
+	optional bytes source_account = 1;		// (optional) 32-byte source account
+
+	optional bytes destination_account = 2; // 32-byte destination account
+}
+
+/**
+ * Request: ask device to confirm this operation type
+ * @prev StellarTxOpRequest
+ * @next StellarTxOpRequest
+ * @next StellarSignedTx
+ */
+message StellarManageDataOp {
+	optional bytes source_account = 1;	// (optional) 32-byte source account
+
+	optional string key = 2;
+	optional bytes value = 3;			// 64 bytes of arbitrary data
 }
 
 /**
  * Response: signature for transaction
- * @prev StellarTxOpAck
+ * @prev StellarPaymentOp
+ * @prev StellarCreateAccountOp
+ * @prev StellarPathPaymentOp
+ * @prev StellarManageOfferOp
+ * @prev StellarCreatePassiveOfferOp
+ * @prev StellarSetOptionsOp
+ * @prev StellarChangeTrustOp
+ * @prev StellarAllowTrustOp
+ * @prev StellarAccountMergeOp
+ * @prev StellarManageDataOp
  */
 message StellarSignedTx {
 	optional bytes public_key = 1;  // public key for the private key used to sign data
